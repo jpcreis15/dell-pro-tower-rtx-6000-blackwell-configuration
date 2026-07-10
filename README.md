@@ -3,53 +3,53 @@
 **Hardware:** Dell workstation, NVIDIA RTX PRO 6000 Blackwell (96 GB)
 **OS:** Ubuntu 26.04 LTS
 
-This is the working procedure, in the order that actually succeeds. Doing the
-BIOS steps *first* avoids the display-hang ordeal entirely.
+This is the working procedure, in the order that actually succeeds. The single
+biggest simplification: **plug the monitor's DisplayPort straight into the GPU.**
+With that, the install is smooth — no `nomodeset`, no BIOS display juggling.
 
 ---
 
 ## Key lessons (read first)
 
-1. **The monitor must be plugged into the NVIDIA card's port**, and BIOS must
-   initialize display on the discrete GPU. If the monitor is on the motherboard
-   (onboard) output, the NVIDIA driver's mode-setting appears to "hang" — it's
-   actually rendering to a port with no monitor attached.
-2. **Above 4G Decoding + Resizable BAR must be enabled** in BIOS. The 96 GB card
-   needs a large memory window; without it the driver hangs at display init.
-3. **Keep Secure Boot in one state the whole time.** Toggling it mid-setup caused
+1. **Connect the monitor directly to a DisplayPort on the NVIDIA card** (not the
+   motherboard). This is the most important thing — it makes the whole install
+   go smoothly, with **no `nomodeset` needed** and BIOS **Primary Display on Auto**.
+2. **Above 4G Decoding + Resizable BAR** — enable them if your BIOS exposes them.
+   On many Dell Precision workstations they're **auto-enabled and not shown**,
+   which is fine; don't hunt for a setting that isn't there.
+3. **Keep Secure Boot in one state the whole time.** Toggling it mid-setup causes
    keyboard/boot problems. If Secure Boot is ON, you must enroll the driver's MOK
-   key (see below) or the module is rejected ("Key was rejected by service").
-4. **`nomodeset` is temporary.** Use it only to boot until the driver works, then
-   remove it. `nvidia-smi` working does NOT mean the display works — that's a
-   separate step.
+   key (Step 6) or the module is rejected ("Key was rejected by service").
+4. **`nomodeset` is only a fallback.** With the monitor on the GPU you shouldn't
+   need it. If a boot ever hangs with a blank screen, it's the temporary escape
+   hatch (see Recovery cheat-sheet), not a normal step.
 5. **Change one thing at a time and verify before moving on.**
 
 ---
 
-## Step 0 — BIOS settings (do these first) - GPU Optimization
+## Step 0 — BIOS settings: GPU
 
 Enter BIOS (tap **F2** at the Dell logo) and set:
 
-- **Above 4G Decoding → Enabled**  *(critical for the 96 GB card)*
-- **Resizable BAR / Smart Access Memory → Enabled**
-- **Primary Display / Video → leave on Auto for now.** You switch this to the
-  NVIDIA GPU in **Step 8**, *after* the driver + MOK are in place. Switching it
-  too early can leave the Ubuntu installer with a blank screen. (If the installer
-  is blank anyway, set it back to Auto/onboard to get through the install.)
-- **CSM / Legacy Option ROMs → Disabled** (pure UEFI)
-- **Secure Boot →** pick a state and keep it (ON is fine; enroll MOK in Step 7)
+- **Above 4G Decoding → Enabled** *(if present; often auto/hidden on Dell — fine)*
+- **Resizable BAR / Smart Access Memory → Enabled** *(if present)*
+- **Primary Display / Video → Auto** (leave it — with the monitor on the GPU,
+  Auto works throughout install and after)
+- **CSM / Legacy Option ROMs → Disabled** *(if present; pure UEFI)*
+- **Secure Boot →** pick a state and keep it (ON is fine; enroll MOK in Step 6)
 
-**Connect the monitor to a port on the NVIDIA card**, not the motherboard.
+**Connect the monitor to a DisplayPort on the NVIDIA card**, not the motherboard.
 
 Save and exit.
 
 ---
 
-## Step 1 — BIOS setting - Storage initialization
+## Step 1 — BIOS settings: Storage
 
 Enter BIOS again, or keep the same session as **Step 0**:
 
-- Click on **Advanced Setup**, if you didn't before (top left corner)
+- Click **Advanced Setup** if you haven't (top-left / top-right toggle)
+- Click **Storage**
 - Set **SATA/NVMe Operation** (Disk mode) to **AHCI / NVMe** — **not "RAID On"**.
   If it's left on RAID, the Ubuntu installer won't detect the SSD.
 - Apply changes (bottom)
@@ -59,34 +59,20 @@ Enter BIOS again, or keep the same session as **Step 0**:
 
 ## Step 2 — Install Ubuntu
 
-- Boot the Ubuntu 26.04 installer. If the installer screen is blank/unstable,
-  at the GRUB boot menu press **`e`**, add **`nomodeset`** to the `linux` line,
-  then **Ctrl+X**.
-- During install, do **NOT** tick "Install third-party graphics drivers"
-  (it ships a driver too old for Blackwell).
-- Consider skipping full-disk encryption unless you need it (the LUKS passphrase
-  prompt caused keyboard trouble early in boot).
+- On boot, press **F12** to get the one-time boot menu.
+- Choose the USB entry (e.g. **UEFI USB SanDisk**).
+- Select **Ubuntu (safe graphics)** to be safe.
+- Run the installer.
+  - During install, do **NOT** tick "Install third-party graphics drivers"
+    (it ships a driver too old for Blackwell).
+  - Consider skipping full-disk encryption unless you need it (the LUKS
+    passphrase prompt can cause keyboard trouble early in boot).
+- *Fallback only:* if the installer or first boot is blank/stuck, at the GRUB
+  menu press **`e`**, add **`nomodeset`** to the `linux` line, then **Ctrl+X**.
+  With the monitor on the GPU you normally won't need this.
 
-First boot: if it hangs, use the GRUB `e` → add `nomodeset` trick again.
-
----
-
-## Step 3 — Make GRUB recoverable + update system
-
-Always keep the GRUB menu visible so you're never stranded:
-
+Then update the system:
 ```bash
-sudo nano /etc/default/grub
-```
-Set:
-```
-GRUB_TIMEOUT_STYLE=menu
-GRUB_TIMEOUT=10
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash nomodeset"
-```
-Then:
-```bash
-sudo update-grub
 sudo apt update && sudo apt full-upgrade -y
 sudo apt install -y build-essential dkms linux-headers-$(uname -r)
 sudo reboot
@@ -94,7 +80,7 @@ sudo reboot
 
 ---
 
-## Step 4 — Blacklist Nouveau
+## Step 3 — Blacklist Nouveau
 
 ```bash
 echo -e "blacklist nouveau\noptions nouveau modeset=0" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
@@ -103,7 +89,7 @@ sudo update-initramfs -u
 
 ---
 
-## Step 5 — Add NVIDIA's CUDA repo (Ubuntu 26.04)
+## Step 4 — Add NVIDIA's CUDA repo (Ubuntu 26.04)
 
 ```bash
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2604/x86_64/cuda-keyring_1.1-1_all.deb
@@ -113,7 +99,7 @@ sudo apt update
 
 ---
 
-## Step 6 — Install the open driver (Blackwell needs the 610+ branch)
+## Step 5 — Install the open driver (Blackwell needs the 610+ branch)
 
 ```bash
 sudo apt install -y nvidia-open
@@ -121,12 +107,12 @@ sudo apt install -y nvidia-open
 
 The repo `nvidia-open` is DKMS-built and signed with a **local key** (not
 Canonical's). With Secure Boot ON, the kernel rejects it until you enroll that
-key (Step 7), so right now `sudo modprobe nvidia` will fail with **"Key was
-rejected by service"** — that's expected. Continue to Step 7.
+key (Step 6), so right now `sudo modprobe nvidia` will fail with **"Key was
+rejected by service"** — that's expected. Continue to Step 6.
 
 ---
 
-## Step 7 — Enroll the driver's signing key (MOK) — required with Secure Boot ON
+## Step 6 — Enroll the driver's signing key (MOK) — required with Secure Boot ON
 
 Skip this step **only** if Secure Boot is disabled (`mokutil --sb-state` tells
 you). With Secure Boot on, this is required or the driver won't load.
@@ -148,70 +134,26 @@ sudo reboot
 At the blue **MOK Management** screen: **Enroll MOK → Continue → Yes → enter the
 password → Reboot**. (Your keyboard works here because Secure Boot is on.)
 
-**3. Verify the driver loads** (do this *after* you can log in — see the note):
+---
+
+## Step 7 — Verify the driver and desktop
+
+After the MOK reboot, with the monitor on the GPU it should boot straight to the
+graphical login. Confirm everything is up:
+
 ```bash
 sudo modprobe nvidia
 nvidia-smi            # should list the RTX PRO 6000 Blackwell, no key error
+cat /proc/cmdline     # should be clean (no nomodeset)
 ```
-> After the MOK reboot the machine will most likely **get stuck at boot** —
-> that's expected, because the driver now loads and tries to drive the display
-> while the BIOS is still outputting on Auto/onboard. Go to **Step 8** to point
-> the display at the GPU, *then* come back and run this verification.
-> `nvidia-smi` working confirms compute; the display is enabled in Steps 8–9.
+
+`nvidia-smi` listing the card = compute works and the driver is driving the
+display. If instead the boot hangs on a blank screen, see the Recovery
+cheat-sheet.
 
 ---
 
-## Step 8 — Changing Display to run on GPU
-
-After the MOK reboot (Step 7) the machine will most likely **get stuck at boot**,
-because the NVIDIA driver is now loading and trying to drive the display while
-the BIOS is still set to Auto/onboard. Fix it by pointing the display at the
-NVIDIA GPU:
-
-- Press **F2** while booting to enter the BIOS;
-- Go to **Display** (or Primary Display / Video);
-- Select the **NVIDIA GPU** option (instead of **Auto**);
-- Apply changes;
-- Exit.
-
-The machine should now boot to the login. Go back to **Step 7 → part 3** and run
-`nvidia-smi` to confirm the driver loaded, then continue to Step 9.
-
----
-
-## Step 9 — Remove `nomodeset` and enable the desktop
-
-With the monitor on the GPU + BIOS set to init display on the GPU (Step 8), the
-driver can now drive the display.
-
-**If the desktop already came up after Step 8**, `nvidia_drm` is already loaded
-and driving the display. `sudo modprobe -r nvidia_drm` will then report
-**"Module nvidia_drm is in use"** — that's fine and expected. **Skip the reload
-test below** and jump straight to "make it permanent".
-
-Otherwise, test it safely **before** editing GRUB:
-
-```bash
-sudo systemctl enable gdm
-sudo systemctl set-default graphical.target
-sudo systemctl stop nvidia-persistenced
-sudo modprobe -r nvidia_drm
-sudo modprobe nvidia_drm modeset=1     # should NOT hang now (thanks to BIOS fix)
-sudo systemctl start gdm               # graphical login should appear
-```
-
-Make it permanent (remove `nomodeset`):
-```bash
-sudo sed -i 's|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"|' /etc/default/grub
-sudo update-grub
-sudo reboot
-```
-
-It should now boot straight to the graphical login on its own.
-
----
-
-## Step 10 — Install the CUDA toolkit
+## Step 8 — Install the CUDA toolkit
 
 Install the toolkit from the NVIDIA repo (gives `nvcc` + CUDA 13.x libraries):
 
@@ -255,10 +197,9 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lo
 
 ---
 
-## Step 11 — Final verification
+## Step 9 — Final verification
 
 ```bash
-cat /proc/cmdline        # nomodeset gone
 nvidia-smi               # GPU + driver 610, driving the display
 nvcc --version           # only if you installed the toolkit
 # optional compute test if PyTorch is installed:
@@ -269,6 +210,25 @@ Reboot once more to confirm it comes up to the desktop unattended. Done.
 
 ---
 
+## Firefox crashes on this new GPU (optional)
+
+If Firefox crashes on launch, force software rendering (write the prefs from a
+terminal, no GUI needed):
+```bash
+pkill -i firefox; sleep 2
+PROFILE=$(ls -d ~/snap/firefox/common/.mozilla/firefox/*.default* 2>/dev/null | head -1)
+[ -z "$PROFILE" ] && PROFILE=$(ls -d ~/.mozilla/firefox/*.default* 2>/dev/null | head -1)
+cat >> "$PROFILE/user.js" <<'EOF'
+user_pref("gfx.webrender.software", true);
+user_pref("layers.acceleration.disabled", true);
+user_pref("gfx.webrender.all", false);
+EOF
+firefox &
+```
+Remove those lines later once you want GPU acceleration back.
+
+---
+
 ## Recovery cheat-sheet (if a boot fails)
 
 - **Force GRUB menu:** tap **`Esc`** right after the Dell logo. If you land at
@@ -276,5 +236,7 @@ Reboot once more to confirm it comes up to the desktop unattended. Done.
 - **Boot to safe text mode:** at GRUB press `e`, add to the `linux` line:
   `nomodeset nvidia-drm.modeset=0 systemd.unit=multi-user.target`, then Ctrl+X.
 - **Repair GRUB from within Ubuntu:** `sudo grub-install /dev/nvme0n1 && sudo update-grub`
-- **Rule:** don't remove `nomodeset` until `nvidia-smi` works AND the monitor is
-  on the GPU with BIOS display-init set to the GPU.
+- **Make the GRUB menu always show** (easier recovery): in `/etc/default/grub`
+  set `GRUB_TIMEOUT_STYLE=menu` and `GRUB_TIMEOUT=10`, then `sudo update-grub`.
+- **If the display hangs:** confirm the monitor is on the **GPU DisplayPort**.
+  That single connection is what makes this whole setup work without `nomodeset`.
