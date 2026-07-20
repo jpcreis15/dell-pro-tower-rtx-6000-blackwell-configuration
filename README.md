@@ -1,5 +1,20 @@
 # Ubuntu 26.04 + NVIDIA Driver + CUDA Setup
 
+## Flashing USB Stick with Ubuntu
+
+### 1. Download Ubuntu and a Flashing Tool
+- Download the latest Ubuntu Desktop ISO.
+- Download and install a flashing tool, such as balenaEtcher or Rufus.
+
+### 2. Flash the USB Drive
+- Insert a USB flash drive (Note: this will erase all data on the drive).
+- Open the flashing tool you downloaded.
+- Select your downloaded Ubuntu ISO as the "image" or "source".
+- Select your USB drive as the target.
+- Click Flash or Start and wait 5-10 minutes for the process to finish.
+
+## Hardware GPU Configuration
+
 **Hardware:** Dell workstation, NVIDIA RTX PRO 6000 Blackwell (96 GB)
 **OS:** Ubuntu 26.04 LTS
 
@@ -14,7 +29,7 @@ With that, the install is smooth — no `nomodeset`, no BIOS display juggling.
 1. **Connect the monitor directly to a DisplayPort on the NVIDIA card** (not the
    motherboard). This is the most important thing — it makes the whole install
    go smoothly, with **no `nomodeset` needed** and BIOS **Primary Display on Auto**.
-2. **Above 4G Decoding + Resizable BAR** — enable them if your BIOS exposes them.
+2. *(if present)* **Above 4G Decoding + Resizable BAR** — enable them if your BIOS exposes them.
    On many Dell Precision workstations they're **auto-enabled and not shown**,
    which is fine; don't hunt for a setting that isn't there.
 3. **Keep Secure Boot in one state the whole time.** Toggling it mid-setup causes
